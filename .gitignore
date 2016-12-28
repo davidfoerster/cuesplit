@@ -1,0 +1,44 @@
+# Compiled source #
+###################
+*.py[co]
+
+# Packages #
+############
+# it's better to unpack these files and commit the raw source
+# git has its own built in compression methods
+*.7z
+*.dmg
+*.[gx]z
+*.bz2
+*.iso
+*.[jrt]ar
+*.zip
+*.apk
+*.deb
+*.rpm
+
+# Logs #
+######################
+*.log
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+*~
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+*.orig
+*.rej
+*_BASE_*
+*_LOCAL_*
+*_REMOTE_*
+*.swp
+*.bak
+
+# Transient IDE and build system files
+*.sublime-workspace
