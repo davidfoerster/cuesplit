@@ -54,8 +54,12 @@ class CueTrack:
 		self.offset = (minutes * 60 + seconds) * self.FRAMES_PER_SECOND + fragments
 
 
-	def get_metadata(self, **album_metadata):
-		metadata = album_metadata
+	def get_metadata(self, album_metadata, **kw_album_metadata):
+		if album_metadata:
+			metadata = album_metadata.copy()
+			metadata.update(kw_album_metadata)
+		else:
+			metadata = kw_album_metadata
 
 		if self.index is not None:
 			metadata['TRACKNUMBER'] = self.index
@@ -70,7 +74,7 @@ class CueTrack:
 
 
 	def convert(self, filename_format=FILENAME_FORMAT_TEMPLATES['short'],
-		ffmpeg_cmd=FFMPEG, ffmpeg_args=(), album_metadata={}
+		ffmpeg_cmd=FFMPEG, ffmpeg_args=(), album_metadata=None
 	):
 		cmd = list(itertools.dropwhile(callable, ffmpeg_cmd))
 		cmd.append('-ss')
@@ -82,7 +86,7 @@ class CueTrack:
 			cmd.append('-t')
 			cmd.append(format(self.length / self.FRAMES_PER_SECOND, '.3f'))
 
-		metadata = self.get_metadata(**album_metadata)
+		metadata = self.get_metadata(album_metadata)
 		cmd += metadata_to_ffmpeg_args(metadata)
 		cmd += ffmpeg_args
 
