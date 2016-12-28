@@ -36,9 +36,11 @@ class CueTrack:
 	translate_metadata.map = translate_metadata.maps['full']
 
 
-	def __init__(self, index=None, offset=None, length=None, file=None, track_type=None, title=None, performer=None):
+	def __init__(self, index=None, offset=None, length=None, file=None,
+		track_type=None, title=None, performer=None
+	):
 		self.index = index
-		self.offset = offset
+		self.offset = offset if offset is not None else {}
 		self.length = length
 		self.file = file
 		self.track_type = track_type
@@ -46,12 +48,13 @@ class CueTrack:
 		self.performer = performer
 
 
-	def parse_offset(self, s):
+	def parse_offset(self, s, offset_index=1):
 		tok = s.split(':', 2)
 		if len(tok) != 3:
 			raise ValueError('Invalid offset syntax: ' + s)
 		minutes, seconds, fragments = map(int, tok)
-		self.offset = (minutes * 60 + seconds) * self.FRAMES_PER_SECOND + fragments
+		self.offset[offset_index] = (
+			(minutes * 60 + seconds) * self.FRAMES_PER_SECOND + fragments)
 
 
 	def get_metadata(self, album_metadata, **kw_album_metadata):
@@ -78,7 +81,7 @@ class CueTrack:
 	):
 		cmd = list(itertools.dropwhile(callable, ffmpeg_cmd))
 		cmd.append('-ss')
-		cmd.append(format(self.offset / self.FRAMES_PER_SECOND, '.3f'))
+		cmd.append(format(self.offset[1] / self.FRAMES_PER_SECOND, '.3f'))
 		cmd.append('-i')
 		cmd.append(self.file[0])
 

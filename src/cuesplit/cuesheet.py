@@ -79,8 +79,7 @@ class CueSheet:
 					raise ValueError(
 						'Line {}: No TRACK for {} command'
 							.format(tok.line_count, tok.line[0]))
-				if int(tok.line[1]) == 1:
-					current_track.parse_offset(tok.line[2])
+				current_track.parse_offset(tok.line[2], int(tok.line[1]))
 
 			elif tok.line[0] in ('TITLE', 'PERFORMER'):
 				tok.assert_token_count(2)
@@ -107,7 +106,10 @@ class CueSheet:
 			current_track = self.tracks[i]
 			next_track = self.tracks[i + 1]
 			if current_track.file == next_track.file:
-				current_track.length = next_track.offset - current_track.offset
+				next_offset = next_track.offset.get(0)
+				if next_offset is None:
+					next_offset = next_track.offset[1]
+				current_track.length = next_offset - current_track.offset[1]
 			else:
 				current_track.length = None
 
