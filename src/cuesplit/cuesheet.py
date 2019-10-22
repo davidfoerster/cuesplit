@@ -29,7 +29,7 @@ class CueSheet:
 		return metadata
 
 
-	def read(self, src, directory=os.curdir):
+	def read(self, src, directory=None):
 		tok = CueSheetTokenizer(src.readline)
 
 		# read header
@@ -38,15 +38,15 @@ class CueSheet:
 				tok.assert_token_count(2)
 				setattr(self, tok.line[0].lower(), tok.line[1].strip())
 			elif tok.line[0] == 'REM':
-				tok.assert_token_count(-2)
+				#tok.assert_token_count(-2)
 				if (len(tok.line) >= 3 and
 					tok.line[1] in ('DATE', 'GENRE', 'DISCID', 'COMMENT')
 				):
 					self.tags[tok.line[1]] = ' '.join(map(str.strip, tok.line[2:]))
 				else:
 					print(
-						'Line {}: Ignoring cuesheet comment:'.format(tok.line_count),
-						*tok.line, file=sys.stderr)
+						'Line {:d}: Ignoring cuesheet comment:'.format(tok.line_count),
+						*map(repr, tok.line[1:]), file=sys.stderr)
 			elif tok.line[0]:
 				break
 
@@ -56,20 +56,21 @@ class CueSheet:
 		while tok.line:
 			if tok.line[0] == 'FILE':
 				tok.assert_token_count(3)
-				current_file = (os.path.join(directory, tok.line[1]), tok.line[2])
+				current_file = (
+					os.path.join(directory or os.curdir, tok.line[1]), tok.line[2])
 				current_track = None
 
 			elif tok.line[0] == 'TRACK':
 				tok.assert_token_count(3)
 				if current_file is None:
 					raise ValueError(
-						'Line {}: No FILE for TRACK command'.format(tok.line_count))
+						'Line {:d}: No FILE for TRACK command'.format(tok.line_count))
 				current_track = CueTrack(
 					index=int(tok.line[1]), track_type=tok.line[2], file=current_file)
 				if current_track.track_type == 'AUDIO':
 					if current_track.file[1] not in ('WAVE', 'MP3'):
 						raise ValueError(
-							'Line {}: Trying to add an "{}" track but the FILE type "{}" is unsupported.'
+							'Line {:d}: Trying to add a {:s} track but the FILE type {!r} is unsupported.'
 							.format(tok.line_count, current_track.track_type,
 									current_track.file[1]))
 
@@ -79,7 +80,7 @@ class CueSheet:
 				tok.assert_token_count(3)
 				if current_track is None:
 					raise ValueError(
-						'Line {}: No TRACK for {} command'
+						'Line {:d}: No TRACK for {:s} command'
 							.format(tok.line_count, tok.line[0]))
 				current_track.parse_offset(tok.line[2], int(tok.line[1]))
 
@@ -87,7 +88,7 @@ class CueSheet:
 				tok.assert_token_count(2)
 				if current_track is None:
 					raise ValueError(
-						'Line {}: No TRACK for {} command'
+						'Line {:d}: No TRACK for {:s} command'
 							.format(tok.line_count, tok.line[0]))
 				setattr(current_track, tok.line[0].lower(), tok.line[1].strip())
 
@@ -96,15 +97,14 @@ class CueSheet:
 
 			elif tok.line[0]:
 				print(
-					'Line {}: Ignoring illegal command: {}'
-						.format(tok.line_count, tok.line[0]),
-					file=sys.stderr)
+					'Line {:d}: Ignoring illegal command:'.format(tok.line_count),
+					repr(tok.line[0]), file=sys.stderr)
 
 			tok.next_line()
 
 
 	def compute_lengths(self):
-		for i in range(0, len(self.tracks) - 1):
+		for i in range(len(self.tracks) - 1):
 			current_track = self.tracks[i]
 			next_track = self.tracks[i + 1]
 			if current_track.file == next_track.file:
@@ -116,7 +116,8 @@ class CueSheet:
 				current_track.length = None
 
 
-	def convert(self, filename_format=CueTrack.FILENAME_FORMAT_TEMPLATES['short'],
+	def convert(self,
+		filename_format=CueTrack.FILENAME_FORMAT_TEMPLATES['short'],
 		ffmpeg_cmd=FFMPEG, ffmpeg_args=()
 	):
 		self.compute_lengths()
