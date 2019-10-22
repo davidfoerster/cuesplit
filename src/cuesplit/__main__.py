@@ -157,4 +157,5 @@ def run_cmdline(argv=None):
 	args.cuesheet.convert(args.filename_format, cmd, args.ffmpeg_args)
 
 
-run_cmdline()
+if __name__ == '__main__':
+	run_cmdline()

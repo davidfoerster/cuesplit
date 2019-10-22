@@ -1,12 +1,1 @@
-#!/usr/bin/python3
-# -*- coding: utf-8
-
-import sys
-import os.path as path
-
-src_dir = path.join(path.dirname(path.realpath(sys.argv[0])), 'src')
-if path.isdir(path.join(src_dir, 'cuesplit')):
-	#print('Using local modules at', src_dir)
-	sys.path.insert(0, src_dir)
-
-import cuesplit.__main__
+src/cuesplit.py
