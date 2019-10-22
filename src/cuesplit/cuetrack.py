@@ -4,6 +4,7 @@ import itertools
 import sys
 import os.path
 import subprocess
+import collections.abc
 from . import util
 from .util import FFMPEG
 
@@ -17,7 +18,7 @@ class CueTrack:
 			'long': '{TRACKNUMBER:02d} {ARTIST} - {TITLE}',
 		}
 	FILENAME_FORMAT_TEMPLATES['full'] = os.path.join(
-	'{ALBUMARTIST}', '[{DATE}] {ALBUM}', FILENAME_FORMAT_TEMPLATES['short'])
+		'{ALBUMARTIST}', '[{DATE}] {ALBUM}', FILENAME_FORMAT_TEMPLATES['short'])
 
 
 	def translate_metadata(self, metadata):
@@ -32,7 +33,8 @@ class CueTrack:
 			'full': util.str_maketrans(
 				'"<>:/\\|*' + os.sep + (os.altsep or ''), '\'-', '?')
 		}
-	translate_metadata.maps['full'].update((c, None) for c in range(32))
+	translate_metadata.maps['full'].update(zip(
+		range(32), itertools.repeat(None)))
 	translate_metadata.maps['windows'] = translate_metadata.maps['full']
 	translate_metadata.maps['posix'] = translate_metadata.maps['minimal']
 	translate_metadata.map = translate_metadata.maps['full']
@@ -52,11 +54,17 @@ class CueTrack:
 
 	def parse_offset(self, s, offset_index=1):
 		tok = s.split(':', 2)
-		if len(tok) != 3:
-			raise ValueError('Invalid offset syntax: ' + s)
-		minutes, seconds, fragments = map(int, tok)
-		self.offset[offset_index] = (
-			(minutes * 60 + seconds) * self.FRAMES_PER_SECOND + fragments)
+		if len(tok) == 3:
+			tok = tuple(map(int, tok))
+			minutes, seconds, frames = tok
+			if (all(map((0).__le__, tok)) and seconds < 60 and
+				frames < self.FRAMES_PER_SECOND
+			):
+				self.offset[offset_index] = (
+					(minutes * 60 + seconds) * self.FRAMES_PER_SECOND + frames)
+				return
+
+		raise ValueError('Invalid offset value: ' + repr(s))
 
 
 	def get_metadata(self, album_metadata, **kw_album_metadata):
@@ -72,8 +80,10 @@ class CueTrack:
 			metadata['TITLE'] = self.title
 		if self.performer:
 			metadata['ARTIST'] = self.performer
-		elif 'ALBUMARTIST' in metadata:
-			metadata['ARTIST'] = metadata['ALBUMARTIST']
+		else:
+			artist = metadata.get('ALBUMARTIST')
+			if artist:
+				metadata['ARTIST'] = artist
 
 		return metadata
 
@@ -81,15 +91,16 @@ class CueTrack:
 	def convert(self, filename_format=FILENAME_FORMAT_TEMPLATES['short'],
 		ffmpeg_cmd=FFMPEG, ffmpeg_args=(), album_metadata=None
 	):
+		if not isinstance(ffmpeg_cmd, collections.abc.Sized):
+			ffmpeg_cmd = tuple(ffmpeg_cmd)
+
 		cmd = list(itertools.dropwhile(callable, ffmpeg_cmd))
-		cmd.append('-ss')
-		cmd.append(format(self.offset[1] / self.FRAMES_PER_SECOND, '.3f'))
-		cmd.append('-i')
-		cmd.append(self.file[0])
+		cmd += (
+			'-ss', self._format_timestamp(self.offset[1]),
+			'-i', self.file[0])
 
 		if self.length is not None:
-			cmd.append('-t')
-			cmd.append(format(self.length / self.FRAMES_PER_SECOND, '.3f'))
+			cmd += ('-t', self._format_timestamp(self.length))
 
 		metadata = self.get_metadata(album_metadata)
 		cmd += metadata_to_ffmpeg_args(metadata)
@@ -107,6 +118,11 @@ class CueTrack:
 			self.convert_action_call(cmd)
 
 
+	@classmethod
+	def _format_timestamp(cls, fragments):
+		return format(fragments / cls.FRAMES_PER_SECOND, '.3f')
+
+
 	@staticmethod
 	def convert_action_call(cmd):
 		subprocess.check_call(cmd, stdin=subprocess.DEVNULL)
@@ -114,12 +130,10 @@ class CueTrack:
 
 	@staticmethod
 	def convert_action_print(cmd):
-		print('Running:', repr(cmd), end='\n\n', file=sys.stderr)
+		print('Running:', *map(repr, cmd), end='\n\n', file=sys.stderr)
 
 
 def metadata_to_ffmpeg_args(metadata):
-	args = []
-	for k, v in metadata.items():
-		args.append('-metadata')
-		args.append(k + '=' + str(v))
-	return args
+	return itertools.chain.from_iterable(zip(
+		itertools.repeat('-metadata'),
+		itertools.starmap('{}={}'.format, metadata.items())))
