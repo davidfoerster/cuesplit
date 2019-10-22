@@ -6,6 +6,9 @@ import io
 import sys
 import os.path
 import codecs
+import locale
+import contextlib
+import collections
 
 
 FFMPEG = ('ffmpeg',)
@@ -95,35 +98,29 @@ def equals_encoding(a, b):
 
 
 def open_read(path, encoding=None):
+	es = contextlib.ExitStack()
+
 	if path == '-':
-		if encoding and equals_encoding(encoding, sys.stdin.encoding):
-			return sys.stdin
-		raw = sys.stdin.buffer
+		f = sys.stdin
+		if f is None or f.closed:
+			raise IOError('stdin is unavailable or closed')
+		if encoding and equals_encoding(encoding, f.encoding):
+			sys.stdin = None
+			return f
+		raw = f.buffer
+	elif encoding:
+		return open(path, encoding=encoding)
 	else:
-		if encoding:
-			return open(path, 'r', -1, encoding)
-		raw = open(path, 'rb')
+		f = None
+		raw = es.enter_context(open(path, 'rb'))
 
-	if not encoding:
-		if not raw.seekable():
-			with raw:
-				bytes = raw.readall()
-			raw = io.BytesIO(bytes)
-		try:
-			bom = detect_bom(raw.read(4))
-			raw.seek(0)
-		except ex:
-			raw.close()
-			raise ex
-		if bom:
-			encoding = BOM_ENCODING_MAP[bom]
+	with es:
+		encoding = BomEncoding().detect(raw) or locale.getpreferredencoding(False)
+		f = io.TextIOWrapper(raw, encoding)
+		es.pop_all()
 
-	if (encoding and raw is sys.stdin.buffer and
-		equals_encoding(encoding, sys.stdin.encoding)
-	):
-		return sys.stdin
-	try:
-		return io.TextIOWrapper(raw, encoding)
-	except ex:
-		raw.close()
-		raise ex
+	if f is sys.stdin and raw is f.buffer:
+		f.detach()
+		sys.stdin = None
+
+	return f
