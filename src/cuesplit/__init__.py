@@ -1,3 +1,5 @@
+# -*- coding: utf-8
+
 """
 Split and convert audio files with FFmpeg based on a cue sheet.
 """
